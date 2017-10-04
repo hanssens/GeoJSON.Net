@@ -1,14 +1,8 @@
-﻿// --------------------------------------------------------------------------------------------------------------------
-// <copyright file="GeometryCollection.cs" company="Joerg Battermann">
-//   Copyright © Joerg Battermann 2014
-// </copyright>
-// <summary>
-//   Defines the <see cref="http://geojson.org/geojson-spec.html#geometry-collection">GeometryCollection</see> type.
-// </summary>
-// --------------------------------------------------------------------------------------------------------------------
+﻿// Copyright © Joerg Battermann 2014, Matt Hunt 2017
 
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using GeoJSON.Net.Converters;
 using Newtonsoft.Json;
@@ -16,111 +10,114 @@ using Newtonsoft.Json;
 namespace GeoJSON.Net.Geometry
 {
     /// <summary>
-    ///     Defines the <see cref="http://geojson.org/geojson-spec.html#geometry-collection">GeometryCollection</see> type.
+    /// Defines the GeometryCollection type.
     /// </summary>
-    public class GeometryCollection : GeoJSONObject, IGeometryObject
+    /// <remarks>
+    /// See https://tools.ietf.org/html/rfc7946#section-3.1.8
+    /// </remarks>
+    public class GeometryCollection : GeoJSONObject, IGeometryObject, IEqualityComparer<GeometryCollection>, IEquatable<GeometryCollection>
     {
         /// <summary>
-        ///     Initializes a new instance of the <see cref="GeometryCollection" /> class.
+        /// Initializes a new instance of the <see cref="GeometryCollection" /> class.
         /// </summary>
-        public GeometryCollection() : this(new List<IGeometryObject>())
+        public GeometryCollection() : this(new IGeometryObject[0])
         {
         }
 
         /// <summary>
-        ///     Initializes a new instance of the <see cref="GeometryCollection" /> class.
+        /// Initializes a new instance of the <see cref="GeometryCollection" /> class.
         /// </summary>
         /// <param name="geometries">The geometries contained in this GeometryCollection.</param>
-        public GeometryCollection(List<IGeometryObject> geometries)
+        public GeometryCollection(IEnumerable<IGeometryObject> geometries)
         {
-            if (geometries == null)
-            {
-                throw new ArgumentNullException("geometries");
-            }
+            Geometries = new ReadOnlyCollection<IGeometryObject>(
+                geometries?.ToArray() ?? throw new ArgumentNullException(nameof(geometries)));
+        }
 
-            Geometries = geometries;
-            Type = GeoJSONObjectType.GeometryCollection;
+        public override GeoJSONObjectType Type => GeoJSONObjectType.GeometryCollection;
+
+        /// <summary>
+        /// Gets the list of Polygons enclosed in this MultiPolygon.
+        /// </summary>
+        [JsonProperty("geometries", Required = Required.Always)]
+        [JsonConverter(typeof(GeometryConverter))]
+        public ReadOnlyCollection<IGeometryObject> Geometries { get; private set; }
+
+        #region IEqualityComparer, IEquatable
+
+        /// <summary>
+        /// Determines whether the specified object is equal to the current object
+        /// </summary>
+        public override bool Equals(object obj)
+        {
+            return Equals(this, obj as GeometryCollection);
         }
 
         /// <summary>
-        ///     Gets the list of Polygons enclosed in this MultiPolygon.
+        /// Determines whether the specified object is equal to the current object
         /// </summary>
-        [JsonProperty(PropertyName = "geometries", Required = Required.Always)]
-        [JsonConverter(typeof(GeometryConverter))]
-        public List<IGeometryObject> Geometries { get; private set; }
+        public bool Equals(GeometryCollection other)
+        {
+            return Equals(this, other);
+        }
 
         /// <summary>
-        /// Determines whether the specified <see cref="System.Object"/>, is equal to this instance.
+        /// Determines whether the specified object instances are considered equal
         /// </summary>
-        /// <param name="obj">The <see cref="System.Object" /> to compare with this instance.</param>
-        /// <returns>
-        ///   <c>true</c> if the specified <see cref="System.Object" /> is equal to this instance; otherwise, <c>false</c>.
-        /// </returns>
-        public override bool Equals(object obj)
+        public bool Equals(GeometryCollection left, GeometryCollection right)
         {
-            if (ReferenceEquals(null, obj))
+            if (base.Equals(left, right))
             {
-                return false;
+                return left.Geometries.SequenceEqual(right.Geometries);
             }
+            return false;
+        }
 
-            if (ReferenceEquals(this, obj))
+        /// <summary>
+        /// Determines whether the specified object instances are considered equal
+        /// </summary>
+        public static bool operator ==(GeometryCollection left, GeometryCollection right)
+        {
+            if (ReferenceEquals(left, right))
             {
                 return true;
             }
-
-            if (obj.GetType() != GetType())
+            if (ReferenceEquals(null, right))
             {
                 return false;
             }
-
-            return Equals((GeometryCollection)obj);
+            return left != null && left.Equals(right);
         }
 
         /// <summary>
-        /// Returns a hash code for this instance.
+        /// Determines whether the specified object instances are not considered equal
         /// </summary>
-        /// <returns>
-        /// A hash code for this instance, suitable for use in hashing algorithms and data structures like a hash table. 
-        /// </returns>
-        public override int GetHashCode()
-        {
-            return Geometries.GetHashCode();
-        }
-
-        /// <summary>
-        /// Implements the operator ==.
-        /// </summary>
-        /// <param name="left">The left.</param>
-        /// <param name="right">The right.</param>
-        /// <returns>
-        /// The result of the operator.
-        /// </returns>
-        public static bool operator ==(GeometryCollection left, GeometryCollection right)
-        {
-            return Equals(left, right);
-        }
-
-        /// <summary>
-        /// Implements the operator !=.
-        /// </summary>
-        /// <param name="left">The left.</param>
-        /// <param name="right">The right.</param>
-        /// <returns>
-        /// The result of the operator.
-        /// </returns>
         public static bool operator !=(GeometryCollection left, GeometryCollection right)
         {
-            return !Equals(left, right);
+            return !(left == right);
         }
 
         /// <summary>
-        /// Determines whether the specified <see cref="GeometryCollection"/>, is equal to this instance.
+        /// Returns the hash code for this instance
         /// </summary>
-        /// <param name="other">The other.</param>
-        /// <returns></returns>
-        protected bool Equals(GeometryCollection other)
+        public override int GetHashCode()
         {
-            return base.Equals(other) && Geometries.SequenceEqual(other.Geometries);
+            int hash = base.GetHashCode();
+            foreach (var item in Geometries)
+            {
+                hash = (hash * 397) ^ item.GetHashCode();
+            }
+            return hash;
         }
+
+        /// <summary>
+        /// Returns the hash code for the specified object
+        /// </summary>
+        public int GetHashCode(GeometryCollection other)
+        {
+            return other.GetHashCode();
+        }
+
+        #endregion
     }
 }

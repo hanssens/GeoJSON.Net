@@ -1,14 +1,8 @@
-﻿// --------------------------------------------------------------------------------------------------------------------
-// <copyright file="LineString.cs" company="Joerg Battermann">
-//   Copyright © Joerg Battermann 2014
-// </copyright>
-// <summary>
-//   Defines the <see cref="http://geojson.org/geojson-spec.html#linestring">LineString</see> type.
-// </summary>
-// --------------------------------------------------------------------------------------------------------------------
+﻿// Copyright © Joerg Battermann 2014, Matt Hunt 2017
 
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using GeoJSON.Net.Converters;
 using Newtonsoft.Json;
@@ -16,120 +10,156 @@ using Newtonsoft.Json;
 namespace GeoJSON.Net.Geometry
 {
     /// <summary>
-    ///     Defines the <see cref="http://geojson.org/geojson-spec.html#linestring">LineString</see> type.
+    /// Defines the LineString type.
     /// </summary>
+    /// <remarks>
+    /// See https://tools.ietf.org/html/rfc7946#section-3.1.4
+    /// </remarks>
     [JsonObject(MemberSerialization.OptIn)]
-    public class LineString : GeoJSONObject, IGeometryObject
+    public class LineString : GeoJSONObject, IGeometryObject, IEqualityComparer<LineString>, IEquatable<LineString>
     {
+        /// <summary>
+        /// Initializes a new <see cref="LineString" /> from a 2-d array of <see cref="double" />s
+        /// that matches the "coordinates" field in the JSON representation.
+        /// </summary>
         [JsonConstructor]
-        protected internal LineString()
+        public LineString(IEnumerable<IEnumerable<double>> coordinates)
+        : this(coordinates?.Select(latLongAlt => (IPosition)latLongAlt.ToPosition())
+               ?? throw new ArgumentException(nameof(coordinates)))
         {
         }
 
         /// <summary>
-        ///     Initializes a new instance of the <see cref="LineString" /> class.
+        /// Initializes a new instance of the <see cref="LineString" /> class.
         /// </summary>
         /// <param name="coordinates">The coordinates.</param>
         public LineString(IEnumerable<IPosition> coordinates)
         {
-            if (coordinates == null)
-            {
-                throw new ArgumentNullException("coordinates");
-            }
+            Coordinates = new ReadOnlyCollection<IPosition>(
+                coordinates?.ToArray() ?? throw new ArgumentNullException(nameof(coordinates)));
 
-            var coordsList = coordinates.ToList();
-
-            if (coordsList.Count < 2)
+            if (Coordinates.Count < 2)
             {
                 throw new ArgumentOutOfRangeException(
-                    "coordinates", 
+                    nameof(coordinates),
                     "According to the GeoJSON v1.0 spec a LineString must have at least two or more positions.");
             }
-
-            Coordinates = coordsList;
-            Type = GeoJSONObjectType.LineString;
         }
 
+        public override GeoJSONObjectType Type => GeoJSONObjectType.LineString;
+
         /// <summary>
-        ///     Gets the Positions.
+        /// The positions of the line string.
         /// </summary>
-        /// <value>The Positions.</value>
-        [JsonProperty(PropertyName = "coordinates", Required = Required.Always)]
-        [JsonConverter(typeof(LineStringConverter))]
-        public List<IPosition> Coordinates { get; set; }
-
-        public override bool Equals(object obj)
-        {
-            if (ReferenceEquals(null, obj))
-            {
-                return false;
-            }
-
-            if (ReferenceEquals(this, obj))
-            {
-                return true;
-            }
-
-            if (obj.GetType() != GetType())
-            {
-                return false;
-            }
-
-            return Equals((LineString)obj);
-        }
-
-        public override int GetHashCode()
-        {
-            return Coordinates.GetHashCode();
-        }
+        [JsonProperty("coordinates", Required = Required.Always)]
+        [JsonConverter(typeof(PositionEnumerableConverter))]
+        public ReadOnlyCollection<IPosition> Coordinates { get; }
 
         /// <summary>
-        ///     Determines whether this instance has its first and last coordinate at the same position and thereby is closed.
+        /// Determines whether this instance has its first and last coordinate at the same position and thereby is closed.
         /// </summary>
         /// <returns>
-        ///     <c>true</c> if this instance is closed; otherwise, <c>false</c>.
+        /// <c>true</c> if this instance is closed; otherwise, <c>false</c>.
         /// </returns>
         public bool IsClosed()
         {
-            var firstCoordinate = Coordinates[0] as GeographicPosition;
+            var firstCoordinate = Coordinates[0];
+            var lastCoordinate = Coordinates[Coordinates.Count - 1];
 
-            if (firstCoordinate != null)
-            {
-                var lastCoordinate = Coordinates[Coordinates.Count - 1] as GeographicPosition;
-
-                return firstCoordinate.Latitude == lastCoordinate.Latitude
-                       && firstCoordinate.Longitude == lastCoordinate.Longitude
-                       && firstCoordinate.Altitude == lastCoordinate.Altitude;
-            }
-
-            return Coordinates[0].Equals(Coordinates[Coordinates.Count - 1]);
+            return firstCoordinate.Longitude.Equals(lastCoordinate.Longitude)
+                   && firstCoordinate.Latitude.Equals(lastCoordinate.Latitude)
+                   && firstCoordinate.Altitude.Equals(lastCoordinate.Altitude);
         }
 
         /// <summary>
-        ///     Determines whether this LineString is a
-        ///     <see cref="http://geojson.org/geojson-spec.html#linestring">LinearRing</see>.
+        /// Determines whether this LineString is a LinearRing.
         /// </summary>
+        /// <remarks>
+        /// See https://tools.ietf.org/html/rfc7946#section-3.1.1
+        /// </remarks>
         /// <returns>
-        ///     <c>true</c> if it is a linear ring; otherwise, <c>false</c>.
+        /// <c>true</c> if it is a linear ring; otherwise, <c>false</c>.
         /// </returns>
         public bool IsLinearRing()
         {
             return Coordinates.Count >= 4 && IsClosed();
         }
 
+        #region IEqualityComparer, IEquatable
+
+        /// <summary>
+        /// Determines whether the specified object is equal to the current object
+        /// </summary>
+        public override bool Equals(object obj)
+        {
+            return Equals(this, obj as LineString);
+        }
+
+        /// <summary>
+        /// Determines whether the specified object is equal to the current object
+        /// </summary>
+        public bool Equals(LineString other)
+        {
+            return Equals(this, other);
+        }
+
+        /// <summary>
+        /// Determines whether the specified object instances are considered equal
+        /// </summary>
+        public bool Equals(LineString left, LineString right)
+        {
+            if (base.Equals(left, right))
+            {
+                return left.Coordinates.SequenceEqual(right.Coordinates);
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Determines whether the specified object instances are considered equal
+        /// </summary>
         public static bool operator ==(LineString left, LineString right)
         {
-            return Equals(left, right);
+            if (ReferenceEquals(left, right))
+            {
+                return true;
+            }
+            if (ReferenceEquals(null, right))
+            {
+                return false;
+            }
+            return left != null && left.Equals(right);
         }
 
+        /// <summary>
+        /// Determines whether the specified object instances are not considered equal
+        /// </summary>
         public static bool operator !=(LineString left, LineString right)
         {
-            return !Equals(left, right);
+            return !(left == right);
         }
 
-        protected bool Equals(LineString other)
+        /// <summary>
+        /// Returns the hash code for this instance
+        /// </summary>
+        public override int GetHashCode()
         {
-            return base.Equals(other) && Coordinates.SequenceEqual(other.Coordinates);
+            int hash = base.GetHashCode();
+            foreach (var item in Coordinates)
+            {
+                hash = (hash * 397) ^ item.GetHashCode();
+            }
+            return hash;
         }
+
+        /// <summary>
+        /// Returns the hash code for the specified object
+        /// </summary>
+        public int GetHashCode(LineString other)
+        {
+            return other.GetHashCode();
+        }
+
+        #endregion
     }
 }

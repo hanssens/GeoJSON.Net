@@ -1,26 +1,21 @@
-﻿// --------------------------------------------------------------------------------------------------------------------
-// <copyright file="PolygonConverter.cs" company="Joerg Battermann">
-//   Copyright © Joerg Battermann 2014
-// </copyright>
-// <summary>
-//   Defines the PolygonConverter type.
-// </summary>
-// --------------------------------------------------------------------------------------------------------------------
+﻿// Copyright © Joerg Battermann 2014, Matt Hunt 2017
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using GeoJSON.Net.Geometry;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace GeoJSON.Net.Converters
 {
     /// <summary>
-    ///     Converter to read and write the <see cref="Polygon" /> type.
+    /// Converter to read and write the <see cref="IEnumerable{IPosition}" /> type.
     /// </summary>
-    public class PolygonConverter : JsonConverter
+    public class PositionEnumerableConverter : JsonConverter
     {
-        private static readonly LineStringConverter LineStringConverter = new LineStringConverter();
-
+        private static readonly PositionConverter PositionConverter = new PositionConverter();
+        
         /// <summary>
         ///     Determines whether this instance can convert the specified object type.
         /// </summary>
@@ -30,7 +25,7 @@ namespace GeoJSON.Net.Converters
         /// </returns>
         public override bool CanConvert(Type objectType)
         {
-            return objectType == typeof(Polygon);
+            return typeof(IEnumerable<IPosition>).IsAssignableFromType(objectType);
         }
 
         /// <summary>
@@ -45,16 +40,12 @@ namespace GeoJSON.Net.Converters
         /// </returns>
         public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
         {
-            var rings = serializer.Deserialize<double[][][]>(reader);
-            var lineStrings = new List<LineString>(rings.Length);
-
-            foreach (var ring in rings)
-            {
-                var positions = (IEnumerable<IPosition>)LineStringConverter.ReadJson(reader, typeof(LineString), ring, serializer);
-                lineStrings.Add(new LineString(positions));
-            }
-
-            return lineStrings;
+            var coordinates = existingValue as JArray ?? serializer.Deserialize<JArray>(reader);
+            return coordinates.Select(pos => PositionConverter.ReadJson(pos.CreateReader(),
+                typeof(IPosition),
+                pos,
+                serializer
+            )).Cast<IPosition>();
         }
 
         /// <summary>
@@ -65,28 +56,18 @@ namespace GeoJSON.Net.Converters
         /// <param name="serializer">The calling serializer.</param>
         public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
         {
-            var coordinateElements = value as List<LineString>;
-            if (coordinateElements != null && coordinateElements.Count > 0)
+            if (value is IEnumerable<IPosition> coordinateElements)
             {
-                if (coordinateElements[0].Coordinates[0] is GeographicPosition)
+                writer.WriteStartArray();
+                foreach (var position in coordinateElements)
                 {
-                    writer.WriteStartArray();
-
-                    foreach (var subPolygon in coordinateElements)
-                    {
-                        LineStringConverter.WriteJson(writer, subPolygon.Coordinates, serializer);
-                    }
-
-                    writer.WriteEndArray();
+                    PositionConverter.WriteJson(writer, position, serializer);
                 }
-                else
-                {
-                    throw new NotImplementedException();
-                }
+                writer.WriteEndArray();
             }
             else
             {
-                serializer.Serialize(writer, value);
+                throw new ArgumentException($"{nameof(PositionEnumerableConverter)}: unsupported value type");
             }
         }
     }

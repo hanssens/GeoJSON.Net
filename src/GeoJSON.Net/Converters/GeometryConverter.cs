@@ -1,16 +1,9 @@
-﻿// --------------------------------------------------------------------------------------------------------------------
-// <copyright file="GeometryConverter.cs" company="Joerg Battermann">
-//   Copyright © Joerg Battermann 2014
-// </copyright>
-// <summary>
-//   Defines the GeometryConverter type.
-// </summary>
-// --------------------------------------------------------------------------------------------------------------------
+﻿// Copyright © Joerg Battermann 2014, Matt Hunt 2017
 
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
-using System.Reflection;
 using GeoJSON.Net.Geometry;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -31,7 +24,7 @@ namespace GeoJSON.Net.Converters
         /// </returns>
         public override bool CanConvert(Type objectType)
         {
-            return typeof(IGeometryObject).GetTypeInfo().IsAssignableFrom(objectType.GetTypeInfo());
+            return typeof(IGeometryObject).IsAssignableFromType(objectType);
         }
 
         /// <summary>
@@ -55,8 +48,8 @@ namespace GeoJSON.Net.Converters
                     return ReadGeoJson(value);
                 case JsonToken.StartArray:
                     var values = JArray.Load(reader);
-                    var geometries = new List<IGeometryObject>(values.Count);
-                    geometries.AddRange(values.Cast<JObject>().Select(ReadGeoJson));
+                    var geometries = new ReadOnlyCollection<IGeometryObject>(
+                        values.Cast<JObject>().Select(ReadGeoJson).ToArray());
                     return geometries;
             }
 
@@ -98,10 +91,21 @@ namespace GeoJSON.Net.Converters
 
             GeoJSONObjectType geoJsonType;
 
+#if (NET35)
+            try
+            {
+                geoJsonType = (GeoJSONObjectType)Enum.Parse(typeof(GeoJSONObjectType), token.Value<string>(), true);
+            }
+            catch (Exception)
+            {
+                throw new JsonReaderException("Type must be a valid geojson object type");
+            }
+#else
             if (!Enum.TryParse(token.Value<string>(), true, out geoJsonType))
             {
                 throw new JsonReaderException("type must be a valid geojson geometry object type");
             }
+#endif
 
             switch (geoJsonType)
             {

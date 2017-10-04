@@ -7,13 +7,18 @@ namespace GeoJSON.Net.Tests
 {
     public abstract class TestBase
     {
-        private static readonly string AssemblyName = typeof(TestBase).Assembly.GetName().Name;
+        private static readonly Assembly ThisAssembly = typeof(TestBase)
+#if NETCOREAPP1_1
+        .GetTypeInfo()
+#endif
+        .Assembly;
+        private static readonly string AssemblyName = ThisAssembly.GetName().Name;
 
         public static string AssemblyDirectory
         {
             get
             {
-                string codeBase = typeof(TestBase).Assembly.CodeBase;
+                string codeBase = ThisAssembly.CodeBase;
                 UriBuilder uri = new UriBuilder(codeBase);
                 string path = Uri.UnescapeDataString(uri.Path);
                 return Path.GetDirectoryName(path);
@@ -24,7 +29,7 @@ namespace GeoJSON.Net.Tests
         {
             var type = GetType().Name;
             var projectFolder = GetType().Namespace.Substring(AssemblyName.Length + 1);
-            var path = Path.Combine(AssemblyDirectory, @".\", projectFolder, type + "_" + name + ".json");
+            var path = Path.Combine(AssemblyDirectory, @"./", projectFolder, type + "_" + name + ".json");
 
             if (!File.Exists(path))
             {

@@ -2,3 +2,7 @@
 packages/
 *.nupkg
 lib/*
+
+#OSX
+.DS_Store
+/.vs

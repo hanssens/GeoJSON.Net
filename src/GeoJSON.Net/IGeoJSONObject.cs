@@ -1,11 +1,4 @@
-﻿// --------------------------------------------------------------------------------------------------------------------
-// <copyright file="IGeoJSONObject.cs" company="Joerg Battermann">
-//   Copyright © Joerg Battermann 2014
-// </copyright>
-// <summary>
-//   Defines the IGeoJSONObject interface.
-// </summary>
-// --------------------------------------------------------------------------------------------------------------------
+﻿// Copyright © Joerg Battermann 2014, Matt Hunt 2017
 
 namespace GeoJSON.Net
 {
@@ -15,24 +8,33 @@ namespace GeoJSON.Net
     public interface IGeoJSONObject
     {
         /// <summary>
-        /// Gets the (mandatory) type of the <see cref="http://geojson.org/geojson-spec.html#geojson-objects">GeoJSON Object</see>.
+        /// Gets the (mandatory) type of the GeoJSON Object.
         /// </summary>
+        /// <remarks>
+        /// See https://tools.ietf.org/html/rfc7946#section-3
+        /// </remarks>
         /// <value>
         /// The type of the object.
         /// </value>
         GeoJSONObjectType Type { get; }
 
         /// <summary>
-        /// Gets the (optional) <see cref="http://geojson.org/geojson-spec.html#coordinate-reference-system-objects">Coordinate Reference System Object</see>.
+        /// Gets the (optional) Coordinate Reference System Object.
         /// </summary>
+        /// <remarks>
+        /// See https://tools.ietf.org/html/rfc7946#section-4
+        /// </remarks>
         /// <value>
         /// The Coordinate Reference System Objects.
         /// </value>
         CoordinateReferenceSystem.ICRSObject CRS { get; }
 
         /// <summary>
-        /// Gets or sets the (optional) <see cref="http://geojson.org/geojson-spec.html#coordinate-reference-system-objects">Bounding Boxes</see>.
+        /// Gets or sets the (optional) Bounding Boxes.
         /// </summary>
+        /// <remarks>
+        /// See https://tools.ietf.org/html/rfc7946#section-5
+        /// </remarks>
         /// <value>
         /// The value of the bbox member must be a 2*n array where n is the number of dimensions represented in the
         /// contained geometries, with the lowest values for all axes followed by the highest values.

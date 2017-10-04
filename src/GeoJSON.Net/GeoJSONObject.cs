@@ -1,19 +1,13 @@
-﻿// --------------------------------------------------------------------------------------------------------------------
-// <copyright file="GeoJSONObject.cs" company="Joerg Battermann">
-//   Copyright © Joerg Battermann 2014
-// </copyright>
-// <summary>
-//   Defines the GeoJSONObject type.
-// </summary>
-// --------------------------------------------------------------------------------------------------------------------
+﻿// Copyright © Joerg Battermann 2014, Matt Hunt 2017
 
 using System.Linq;
 using System.Runtime.Serialization;
 using GeoJSON.Net.Converters;
 using GeoJSON.Net.CoordinateReferenceSystem;
-using GeoJSON.Net.Geometry;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
+using System.Collections.Generic;
+using System;
 
 namespace GeoJSON.Net
 {
@@ -21,18 +15,13 @@ namespace GeoJSON.Net
     ///     Base class for all IGeometryObject implementing types
     /// </summary>
     [JsonObject(MemberSerialization.OptIn)]
-    public abstract class GeoJSONObject : IGeoJSONObject
+    public abstract class GeoJSONObject : IGeoJSONObject, IEqualityComparer<GeoJSONObject>, IEquatable<GeoJSONObject>
     {
         internal static readonly DoubleTenDecimalPlaceComparer DoubleComparer = new DoubleTenDecimalPlaceComparer();
 
-        protected GeoJSONObject()
-        {
-            CRS = DefaultCRS.Instance;
-        }
-
         /// <summary>
         ///     Gets or sets the (optional)
-        ///     <see cref="http://geojson.org/geojson-spec.html#coordinate-reference-system-objects">Bounding Boxes</see>.
+        ///     <see cref="https://tools.ietf.org/html/rfc7946#section-5">Bounding Boxes</see>.
         /// </summary>
         /// <value>
         ///     The value of <see cref="BoundingBoxes" /> must be a 2*n array where n is the number of dimensions represented in
@@ -47,7 +36,7 @@ namespace GeoJSON.Net
 
         /// <summary>
         ///     Gets or sets the (optional)
-        ///     <see cref="http://geojson.org/geojson-spec.html#coordinate-reference-system-objects">
+        ///     <see cref="https://tools.ietf.org/html/rfc7946#section-4">
         ///         Coordinate Reference System
         ///         Object.
         ///     </see>
@@ -62,156 +51,108 @@ namespace GeoJSON.Net
         public ICRSObject CRS { get; set; }
 
         /// <summary>
-        ///     Gets the (mandatory) type of the
-        ///     <see cref="http://geojson.org/geojson-spec.html#geojson-objects">GeoJSON Object</see>.
+        ///     The (mandatory) type of the
+        ///     <see cref="https://tools.ietf.org/html/rfc7946#section-3">GeoJSON Object</see>.
         /// </summary>
-        /// <value>
-        ///     The type of the object.
-        /// </value>
-        [JsonProperty(PropertyName = "type", Required = Required.Always)]
+        [JsonProperty(PropertyName = "type", Required = Required.Always, DefaultValueHandling = DefaultValueHandling.Include)]
         [JsonConverter(typeof(StringEnumConverter))]
-        public GeoJSONObjectType Type { get; internal set; }
+        public abstract GeoJSONObjectType Type { get; }
+
+
+        #region IEqualityComparer, IEquatable
 
         /// <summary>
-        /// Determines whether the specified <see cref="System.Object" />, is equal to this instance.
+        /// Determines whether the specified object is equal to the current object
         /// </summary>
-        /// <param name="obj">The <see cref="System.Object" /> to compare with this instance.</param>
-        /// <returns>
-        ///   <c>true</c> if the specified <see cref="System.Object" /> is equal to this instance; otherwise, <c>false</c>.
-        /// </returns>
         public override bool Equals(object obj)
         {
-            if (ReferenceEquals(null, obj))
-            {
-                return false;
-            }
+            return Equals(this, obj as GeoJSONObject);
+        }
 
-            if (ReferenceEquals(this, obj))
+        /// <summary>
+        /// Determines whether the specified object is equal to the current object
+        /// </summary>
+        public bool Equals(GeoJSONObject other)
+        {
+            return Equals(this, other);
+        }
+
+        /// <summary>
+        /// Determines whether the specified object instances are considered equal
+        /// </summary>
+        public bool Equals(GeoJSONObject left, GeoJSONObject right)
+        {
+            if (ReferenceEquals(left, right))
             {
                 return true;
             }
-
-            if (obj.GetType() != GetType())
+            if (ReferenceEquals(null, right))
             {
                 return false;
             }
 
-            return Equals((GeoJSONObject)obj);
-        }
-
-        /// <summary>
-        /// Returns a hash code for this instance.
-        /// </summary>
-        /// <returns>
-        /// A hash code for this instance, suitable for use in hashing algorithms and data structures like a hash table. 
-        /// </returns>
-        public override int GetHashCode()
-        {
-            unchecked
+            if (left.Type != right.Type)
             {
-                var hashCode = (BoundingBoxes != null ? BoundingBoxes.GetHashCode() : 0);
-                hashCode = (hashCode * 397) ^ (CRS != null ? CRS.GetHashCode() : 0);
-                hashCode = (hashCode * 397) ^ (int)Type;
-                return hashCode;
+                return false;
             }
+
+            if (!Equals(left.CRS, right.CRS))
+            {
+                return false;
+            }
+
+            var leftIsNull = ReferenceEquals(null, left.BoundingBoxes);
+            var rightIsNull = ReferenceEquals(null, right.BoundingBoxes);
+            var bothAreMissing = leftIsNull && rightIsNull;
+
+            if (bothAreMissing || leftIsNull != rightIsNull)
+            {
+                return bothAreMissing;
+            }
+
+            return left.BoundingBoxes.SequenceEqual(right.BoundingBoxes, DoubleComparer);
         }
 
         /// <summary>
-        /// Implements the operator ==.
+        /// Determines whether the specified object instances are considered equal
         /// </summary>
-        /// <param name="left">The left.</param>
-        /// <param name="right">The right.</param>
-        /// <returns>
-        /// The result of the operator.
-        /// </returns>
         public static bool operator ==(GeoJSONObject left, GeoJSONObject right)
         {
-            return Equals(left, right);
-        }
-
-        /// <summary>
-        /// Implements the operator !=.
-        /// </summary>
-        /// <param name="left">The left.</param>
-        /// <param name="right">The right.</param>
-        /// <returns>
-        /// The result of the operator.
-        /// </returns>
-        public static bool operator !=(GeoJSONObject left, GeoJSONObject right)
-        {
-            return !Equals(left, right);
-        }
-
-        /// <summary>
-        /// Determines whether the specified <see cref="GeoJSONObject" />, is equal to this instance.
-        /// </summary>
-        /// <param name="other">The <see cref="GeoJSONObject" /> to compare with this instance.</param>
-        /// <returns>
-        ///   <c>true</c> if the specified <see cref="GeoJSONObject" /> is equal to this instance; otherwise, <c>false</c>.
-        /// </returns>
-        protected virtual bool Equals(GeoJSONObject other)
-        {
-            if (Type != other.Type)
-            {
-                return false;
-            }
-
-            if (!Equals(CRS, other.CRS))
-            {
-                return false;
-            }
-
-            if (BoundingBoxes == null && other.BoundingBoxes == null)
+            if (ReferenceEquals(left, right))
             {
                 return true;
             }
-
-            if ((BoundingBoxes != null && other.BoundingBoxes == null) ||
-                (BoundingBoxes == null && other.BoundingBoxes != null))
+            if (ReferenceEquals(null, right))
             {
                 return false;
             }
-
-            return BoundingBoxes.SequenceEqual(other.BoundingBoxes, DoubleComparer);
+            return left.Equals(right);
         }
 
         /// <summary>
-        ///     Called when [deserialized].
+        /// Determines whether the specified object instances are not considered equal
         /// </summary>
-        /// <param name="streamingContext">The streaming context.</param>
-        [OnDeserialized]
-        private void OnDeserialized(StreamingContext streamingContext)
+        public static bool operator !=(GeoJSONObject left, GeoJSONObject right)
         {
-            if (CRS == null)
-            {
-                CRS = DefaultCRS.Instance;
-            }
+            return !(left == right);
         }
 
         /// <summary>
-        ///     Called when [serialized].
+        /// Returns the hash code for this instance
         /// </summary>
-        /// <param name="streamingContext">The streaming context.</param>
-        [OnSerialized]
-        private void OnSerialized(StreamingContext streamingContext)
+        public override int GetHashCode()
         {
-            if (CRS == null)
-            {
-                CRS = DefaultCRS.Instance;
-            }
+            return ((int)Type).GetHashCode();
         }
 
         /// <summary>
-        ///     Called when [serializing].
+        /// Returns the hash code for the specified object
         /// </summary>
-        /// <param name="streamingContext">The streaming context.</param>
-        [OnSerializing]
-        private void OnSerializing(StreamingContext streamingContext)
+        public int GetHashCode(GeoJSONObject obj)
         {
-            if (CRS is DefaultCRS)
-            {
-                CRS = null;
-            }
+            return obj.GetHashCode();
         }
+
+        #endregion
     }
 }
