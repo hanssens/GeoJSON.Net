@@ -6,3 +6,6 @@ lib/*
 #OSX
 .DS_Store
 /.vs
+
+#JetBrains
+.idea
